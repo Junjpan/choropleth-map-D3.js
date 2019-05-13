@@ -1,0 +1,172 @@
+//reference from https://bl.ocks.org/mbostock/3306362
+const title = d3.
+select("header").
+append("text").
+attr("id", "title").
+classed("title", true).
+text("United States Educational Attainment");
+
+const description = d3.
+select("body").
+append("text").
+attr("id", "description").
+text(
+"Percentage of adults age 25 and older with a bachelor's degree or higher (2010 - 2014)");
+
+
+const w = 950;
+const h = 700;
+const ptop = 200;
+
+const education_url =
+"https://raw.githubusercontent.com/no-stack-dub-sack/testable-projects-fcc/master/src/data/choropleth_map/for_user_education.json";
+
+const map_url =
+"https://raw.githubusercontent.com/no-stack-dub-sack/testable-projects-fcc/master/src/data/choropleth_map/counties.json";
+
+const canvas = d3.
+select("body").
+append("svg").
+attr("width", w).
+attr("height", h + ptop).
+append("g").
+attr("transform", "translate(0," + ptop + ")");
+
+d3.
+queue() //Use queue to handle asynchronous functions with callbacks
+.defer(d3.json, map_url).
+defer(d3.json, education_url).
+await(ready);
+
+function ready(error, county, education) {
+  if (error) throw error;
+  const dataSet = education;
+  const minPercentage = d3.min(dataSet, d => d.bachelorsOrHigher);
+  const maxPercentage = d3.max(dataSet, d => d.bachelorsOrHigher);
+  console.log(minPercentage, maxPercentage);
+  const color = d3.
+  scaleThreshold().
+  domain(
+  d3.range(
+  minPercentage,
+  maxPercentage,
+  (maxPercentage - minPercentage) / 8)).
+
+
+  range(d3.schemeReds[9]);
+
+  console.log(color.domain()[1]);
+  //console.log(color.domain());Array(8) [ 2.6, 11.6625, 20.725, 29.7875, 38.85, 47.9125, 56.975, 66.0375 ]
+  //console.log(color.range())Array(9) [ "#fff5f0", "#fee0d2", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#a50f15", "#67000d" ]
+  /**const c=color.range().map((d)=>color.invertExtent(d));
+  //console.log(c); outcome will be listed as below
+  0: Array [ undefined, 2.6 ]
+  1: Array [ 2.6, 11.6625 ]
+  2: Array [ 11.6625, 20.725 ]
+  3:Array [ 20.725, 29.7875 ]
+  4: Array [ 29.7875, 38.85 ]
+  5: Array [ 38.85, 47.9125 ]
+  6: Array [ 47.9125, 56.975 ]
+  7: Array [ 56.975, 66.0375 ]
+  8: Array [ 66.0375, undefined ]**/
+  //console.log(color(2.6));
+
+  //import scripts from https://d3js.org/d3-scale-chromatic.v1.min.js to be able to use schemeGreens[8]
+  //find more information from https://d3-wiki.readthedocs.io/zh_CN/master/Quantitative-Scales/ to understand d3.scaleThreshold() or d3.scale.threshold().
+
+  const path = d3.geoPath(); //d3.geo.path(): D3 Geo Path Data Generator helper class for generating SVG Path instructions from GeoJSON data.then pass this SVG Path instructions to the "d" attribute of the SVG path to display SVG Path on screen.
+  const tooltip = d3.
+  select("body").
+  append("div").
+  classed("tooltip", true);
+
+  function mouseoverhandler(d) {
+    //console.log(d);
+    d3.
+    select(this).
+    attr("opacity", 0.8).
+    attr("stroke", "red");
+    tooltip.style("opacity", 1);
+    tooltip.
+    style("left", d3.event.pageX + "px").
+    style("top", d3.event.pageY + "px").
+    html(() => {
+      var outcome = dataSet.filter(data => {
+        return d.id == data.fips;
+      });
+      console.log(outcome[0]);
+      if (outcome[0]) {
+        return (
+          "<span>" +
+          outcome[0].area_name +
+          "county-" +
+          outcome[0].state +
+          ":" +
+          outcome[0].bachelorsOrHigher +
+          "%</span>");
+
+      } else {
+        return "No data found in this county.";
+      }
+    });
+  }
+
+  function mouseOutHandler(d) {
+    d3.
+    select(this).
+    attr("opacity", 1).
+    attr("stroke", "none");
+    tooltip.style("opacity", 0);
+  }
+
+  var map = canvas.
+  append("g").
+  selectAll("path").
+  data(topojson.feature(county, county.objects.counties).features).
+  enter().
+  append("path").
+  attr("class", "county").
+  attr("d", path).
+  attr("fill", d => {
+    var result = dataSet.filter(data => {
+      return d.id == data.fips;
+    });
+    if (result[0]) {
+      //console.log(result[0]);
+      return color(result[0].bachelorsOrHigher);
+    } else {
+      color(0);
+    }
+  }).
+  on("mouseover", mouseoverhandler).
+  on("mouseout", mouseOutHandler);
+
+  const legend = canvas.append("g").attr("transform", "translate(520,-50)");
+
+  const xScale = d3.scaleLinear().
+  domain([minPercentage, maxPercentage]).
+  range([520, 920]); //or maybe rangeRound
+  //console.log(xScale);
+  const xAxis = d3.axisBottom(xScale).
+  tickValues(d3.range(2.6, 75.1, 9)).
+  tickFormat(function (xScale) {return Math.round(xScale) + '%';});
+
+
+  canvas.append("g").
+  attr("transform", "translate(0,-80)").
+  call(xAxis).
+  selectAll("text").
+  attr("stroke", "white");
+
+  legend.
+  selectAll("rect").
+  data(d3.range(minPercentage, maxPercentage, (maxPercentage - minPercentage) / 8)).
+  enter().
+  append('rect').
+  attr("id", "legend").
+  attr("x", (d, i) => 50 * i).
+  attr("y", -50).
+  attr("height", 20).
+  attr("width", 50).
+  attr("fill", d => color(d));
+}
